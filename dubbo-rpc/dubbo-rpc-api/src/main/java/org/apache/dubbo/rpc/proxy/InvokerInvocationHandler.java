@@ -59,6 +59,9 @@ public class InvokerInvocationHandler implements InvocationHandler {
         RpcInvocation rpcInvocation = new RpcInvocation(method, invoker.getInterface().getName(), args);
         rpcInvocation.setTargetServiceUniqueName(invoker.getUrl().getServiceKey());
 
+        /**
+         * 一般情况下，invoke: MockClusterInvoker -> FailoverClusterInvoker
+         */
         return invoker.invoke(rpcInvocation).recreate();
     }
 }

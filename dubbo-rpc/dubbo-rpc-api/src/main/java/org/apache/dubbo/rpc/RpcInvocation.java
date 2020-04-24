@@ -111,6 +111,11 @@ public class RpcInvocation implements Invocation, Serializable {
         this.targetServiceUniqueName = invocation.getTargetServiceUniqueName();
     }
 
+    /**
+     * @param method 表示被调用方法的 Method 对象
+     * @param serviceName 方法所在接口的简单类名
+     * @param arguments 被调用方法的参数
+     */
     public RpcInvocation(Method method, String serviceName, Object[] arguments) {
         this(method, serviceName, arguments, null, null);
     }

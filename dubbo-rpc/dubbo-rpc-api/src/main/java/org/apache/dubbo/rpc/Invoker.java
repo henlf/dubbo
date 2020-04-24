@@ -37,7 +37,7 @@ public interface Invoker<T> extends Node {
     /**
      * invoke.
      *
-     * @param invocation
+     * @param invocation RpcInvocation: 封装了调用信息，如 方法、参数、类名等
      * @return result
      * @throws RpcException
      */

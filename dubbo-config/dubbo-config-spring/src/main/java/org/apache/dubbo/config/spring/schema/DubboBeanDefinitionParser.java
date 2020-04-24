@@ -77,6 +77,14 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         this.required = required;
     }
 
+    /**
+     * 解析 xml 配置
+     * @param element 标签元素
+     * @param parserContext
+     * @param beanClass bean 类型，在 DubboNamespaceHandler 已经配置好
+     * @param required 默认为 true
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private static BeanDefinition parse(Element element, ParserContext parserContext, Class<?> beanClass, boolean required) {
         RootBeanDefinition beanDefinition = new RootBeanDefinition();
@@ -86,12 +94,16 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         if (StringUtils.isEmpty(id) && required) {
             String generatedBeanName = element.getAttribute("name");
             if (StringUtils.isEmpty(generatedBeanName)) {
+                // <dubbo:protocol> 配置默认 name = dubbo
                 if (ProtocolConfig.class.equals(beanClass)) {
                     generatedBeanName = "dubbo";
                 } else {
+                    // <dubbo:service> 和 <dubbo:reference>，接口全限定名
                     generatedBeanName = element.getAttribute("interface");
                 }
             }
+
+            // 标签既没有配置 id, name 或 interface 属性时，bean 的名字就为标签对应的类的全限定名，如 <dubbo:registry> 标签
             if (StringUtils.isEmpty(generatedBeanName)) {
                 generatedBeanName = beanClass.getName();
             }

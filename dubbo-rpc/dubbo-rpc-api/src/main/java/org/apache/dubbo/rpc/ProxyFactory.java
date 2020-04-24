@@ -50,9 +50,9 @@ public interface ProxyFactory {
      * create invoker.
      *
      * @param <T>
-     * @param proxy
-     * @param type
-     * @param url
+     * @param proxy 服务提供者的实现类
+     * @param type 服务提供者接口
+     * @param url 注册中心 URL
      * @return invoker
      */
     @Adaptive({PROXY_KEY})

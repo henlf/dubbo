@@ -84,12 +84,21 @@ public class ExtensionLoader<T> {
 
     private static final Pattern NAME_SEPARATOR = Pattern.compile("\\s*[,]+\\s*");
 
+    /**
+     * key : SPI 接口
+     * value : ExtensionLoader
+     */
     private static final ConcurrentMap<Class<?>, ExtensionLoader<?>> EXTENSION_LOADERS = new ConcurrentHashMap<>();
 
     private static final ConcurrentMap<Class<?>, Object> EXTENSION_INSTANCES = new ConcurrentHashMap<>();
 
+    /**
+     * SPI 接口 Class 类型
+     */
     private final Class<?> type;
-
+    /**
+     * SPI 工厂，用于获取 SPI 具体实现
+     */
     private final ExtensionFactory objectFactory;
 
     private final ConcurrentMap<Class<?>, String> cachedNames = new ConcurrentHashMap<>();
@@ -107,6 +116,7 @@ public class ExtensionLoader<T> {
 
     private Map<String, IllegalStateException> exceptions = new ConcurrentHashMap<>();
 
+
     private ExtensionLoader(Class<?> type) {
         this.type = type;
         objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());
@@ -116,6 +126,12 @@ public class ExtensionLoader<T> {
         return type.isAnnotationPresent(SPI.class);
     }
 
+    /**
+     * 获取某个 SPI 接口的 加载器
+     * @param type
+     * @param <T>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     public static <T> ExtensionLoader<T> getExtensionLoader(Class<T> type) {
         if (type == null) {
@@ -219,8 +235,8 @@ public class ExtensionLoader<T> {
      * Get activate extensions.
      *
      * @param url    url
-     * @param values extension point names
-     * @param group  group
+     * @param values extension point names，上层是通过在 URL 配置得到
+     * @param group  group 组
      * @return extension list which are activated
      * @see org.apache.dubbo.common.extension.Activate
      */
@@ -228,13 +244,17 @@ public class ExtensionLoader<T> {
         List<T> exts = new ArrayList<>();
         List<String> names = values == null ? new ArrayList<>(0) : Arrays.asList(values);
         if (!names.contains(REMOVE_VALUE_PREFIX + DEFAULT_KEY)) {
+            // 获取接口 org.apache.dubbo.rpc.Filter 的所有扩展实现
             getExtensionClasses();
+
+            // 遍历 Filter 的所有扩展实现
             for (Map.Entry<String, Object> entry : cachedActivates.entrySet()) {
                 String name = entry.getKey();
                 Object activate = entry.getValue();
 
                 String[] activateGroup, activateValue;
 
+                // 获取注解的 group 和 value 值
                 if (activate instanceof Activate) {
                     activateGroup = ((Activate) activate).group();
                     activateValue = ((Activate) activate).value();
@@ -244,6 +264,8 @@ public class ExtensionLoader<T> {
                 } else {
                     continue;
                 }
+
+                // 如果当前扩展实现的组与我们传递的 group 匹配，且 value 值存在 URL 中
                 if (isMatchGroup(group, activateGroup)
                         && !names.contains(name)
                         && !names.contains(REMOVE_VALUE_PREFIX + name)
@@ -288,10 +310,18 @@ public class ExtensionLoader<T> {
         return false;
     }
 
+    /**
+     * Activate 注解的 value 值是否在 URL 中
+     * @param keys
+     * @param url
+     * @return
+     */
     private boolean isActive(String[] keys, URL url) {
         if (keys.length == 0) {
             return true;
         }
+
+        // 遍历当前扩展实现的 value 值
         for (String key : keys) {
             // @Active(value="key1:value1, key2:value2")
             String keyValue = null;
@@ -301,6 +331,7 @@ public class ExtensionLoader<T> {
                 keyValue = arr[1];
             }
 
+            // 遍历当前 URL 中所有属性值
             for (Map.Entry<String, String> entry : url.getParameters().entrySet()) {
                 String k = entry.getKey();
                 String v = entry.getValue();
@@ -584,6 +615,11 @@ public class ExtensionLoader<T> {
         return new IllegalStateException(buf.toString());
     }
 
+    /**
+     * 创建扩展实现类对象，并且对其进行包装
+     * @param name SPI 注解值
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private T createExtension(String name) {
         Class<?> clazz = getExtensionClasses().get(name);
@@ -596,10 +632,22 @@ public class ExtensionLoader<T> {
                 EXTENSION_INSTANCES.putIfAbsent(clazz, clazz.newInstance());
                 instance = (T) EXTENSION_INSTANCES.get(clazz);
             }
+
+            // IoC
             injectExtension(instance);
+
+            // Wrapper 类
             Set<Class<?>> wrapperClasses = cachedWrapperClasses;
             if (CollectionUtils.isNotEmpty(wrapperClasses)) {
+                // 一层层包装
                 for (Class<?> wrapperClass : wrapperClasses) {
+                    // type 为 SPI 接口类型，instance 为 SPI 扩展实现类实例
+                    /**
+                     * T t = (T) wrapperClass.getConstructor(type).newInstance(instance);
+                     * 生成 Wrapper 类型的实例
+                     * injectExtension(t);
+                     * 为 Wrapper 实例注入依赖对象（需要有指定的 setter 方法）
+                     */
                     instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
                 }
             }
@@ -615,6 +663,11 @@ public class ExtensionLoader<T> {
         return getExtensionClasses().containsKey(name);
     }
 
+    /**
+     * 往扩展实现类注入依赖的对象
+     * @param instance 扩展实现类实例
+     * @return
+     */
     private T injectExtension(T instance) {
 
         if (objectFactory == null) {
@@ -623,6 +676,7 @@ public class ExtensionLoader<T> {
 
         try {
             for (Method method : instance.getClass().getMethods()) {
+                // 非 set 方法
                 if (!isSetter(method)) {
                     continue;
                 }
@@ -632,13 +686,22 @@ public class ExtensionLoader<T> {
                 if (method.getAnnotation(DisableInject.class) != null) {
                     continue;
                 }
+                // 方法第一个参数类型为原始数据类型
                 Class<?> pt = method.getParameterTypes()[0];
                 if (ReflectUtils.isPrimitives(pt)) {
                     continue;
                 }
 
                 try {
+                    // 获取 set 属性
                     String property = getSetterProperty(method);
+
+                    // 从 ObjectFactory 中获取依赖对象
+                    /**
+                     * objectFactory 变量的类型为 AdaptiveExtensionFactory，
+                     * AdaptiveExtensionFactory 内部维护了一个 ExtensionFactory 列表，
+                     * 用于存储其他类型的 ExtensionFactory
+                     */
                     Object object = objectFactory.getExtension(pt, property);
                     if (object != null) {
                         method.invoke(instance, object);
@@ -822,17 +885,28 @@ public class ExtensionLoader<T> {
         }
     }
 
+    /**
+     * 加载扩展实现，并缓存
+     * @param extensionClasses
+     * @param resourceURL
+     * @param clazz SPI 接口实现类
+     * @param name 注解值
+     * @throws NoSuchMethodException
+     */
     private void loadClass(Map<String, Class<?>> extensionClasses, java.net.URL resourceURL, Class<?> clazz, String name) throws NoSuchMethodException {
+        // 类型不匹配，则抛出异常
         if (!type.isAssignableFrom(clazz)) {
             throw new IllegalStateException("Error occurred when loading extension class (interface: " +
                     type + ", class line: " + clazz.getName() + "), class "
                     + clazz.getName() + " is not subtype of interface.");
         }
+
+        // 如果 SPI 实现类被 Adaptive 注解，则调用 cacheAdaptiveClass() 方法来做缓存
         if (clazz.isAnnotationPresent(Adaptive.class)) {
             cacheAdaptiveClass(clazz);
-        } else if (isWrapperClass(clazz)) {
+        } else if (isWrapperClass(clazz)) { // 如果 SPI 实现类是 Wrapper 类，则调用 cacheWrapperClass() 方法做缓存
             cacheWrapperClass(clazz);
-        } else {
+        } else { // SPI 正常的实现类，非 Adaptive，非 Wrapper
             clazz.getConstructor();
             if (StringUtils.isEmpty(name)) {
                 name = findAnnotationName(clazz);
@@ -843,9 +917,9 @@ public class ExtensionLoader<T> {
 
             String[] names = NAME_SEPARATOR.split(name);
             if (ArrayUtils.isNotEmpty(names)) {
-                cacheActivateClass(clazz, names[0]);
+                cacheActivateClass(clazz, names[0]); // 为啥名字使用第一个作为 key？
                 for (String n : names) {
-                    cacheName(clazz, n);
+                    cacheName(clazz, n); // 缓存名字，key 为 clazz，value 为 name
                     saveInExtensionClass(extensionClasses, clazz, n);
                 }
             }
@@ -879,6 +953,8 @@ public class ExtensionLoader<T> {
      * cache Activate class which is annotated with <code>Activate</code>
      * <p>
      * for compatibility, also cache class with old alibaba Activate annotation
+     * @param clazz SPI 接口实现类
+     * @param name SPI 接口实现类上的 SPI(Extension) 注解的值，如果有多个值，则为第一个
      */
     private void cacheActivateClass(Class<?> clazz, String name) {
         Activate activate = clazz.getAnnotation(Activate.class);
@@ -919,9 +995,8 @@ public class ExtensionLoader<T> {
     }
 
     /**
-     * test if clazz is a wrapper class
-     * <p>
-     * which has Constructor with given class type as its only argument
+     * 判断 SPI 扩展实现类是否是 Wrapper 类，即包装类，使用 装饰器模式
+     * 判断依据：Wrapper 类会有一个构造器，其参数只有一个，且类型为 SPI 接口类型
      */
     private boolean isWrapperClass(Class<?> clazz) {
         try {
@@ -932,6 +1007,11 @@ public class ExtensionLoader<T> {
         }
     }
 
+    /**
+     * Extension 注解的名字或 SPI 注解的值
+     * @param clazz SPI 接口实现类
+     * @return
+     */
     @SuppressWarnings("deprecation")
     private String findAnnotationName(Class<?> clazz) {
         org.apache.dubbo.common.Extension extension = clazz.getAnnotation(org.apache.dubbo.common.Extension.class);
@@ -939,6 +1019,7 @@ public class ExtensionLoader<T> {
             return extension.value();
         }
 
+        // 如 DubboProtocol, type: Protocol
         String name = clazz.getSimpleName();
         if (name.endsWith(type.getSimpleName())) {
             name = name.substring(0, name.length() - type.getSimpleName().length());

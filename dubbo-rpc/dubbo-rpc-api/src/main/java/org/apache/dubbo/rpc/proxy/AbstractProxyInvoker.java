@@ -44,6 +44,11 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
 
     private final URL url;
 
+    /**
+     * @param proxy 服务提供者实现类实例
+     * @param type 服务提供者接口
+     * @param url 注册中心 URL
+     */
     public AbstractProxyInvoker(T proxy, Class<T> type, URL url) {
         if (proxy == null) {
             throw new IllegalArgumentException("proxy == null");

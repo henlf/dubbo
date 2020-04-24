@@ -161,6 +161,11 @@ public class DubboProtocol extends AbstractProtocol {
             }
         }
 
+        /**
+         * 处理请求
+         * @param channel
+         * @throws RemotingException
+         */
         @Override
         public void connected(Channel channel) throws RemotingException {
             invoke(channel, ON_CONNECT_KEY);
@@ -175,6 +180,7 @@ public class DubboProtocol extends AbstractProtocol {
         }
 
         private void invoke(Channel channel, String methodKey) {
+            // 创建 Invocation 对象
             Invocation invocation = createInvocation(channel, channel.getUrl(), methodKey);
             if (invocation != null) {
                 try {
@@ -283,6 +289,7 @@ public class DubboProtocol extends AbstractProtocol {
 
         // export service.
         String key = serviceKey(url);
+        // Invoker 到 Exporter 的转换
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
         exporterMap.put(key, exporter);
 
@@ -302,6 +309,7 @@ public class DubboProtocol extends AbstractProtocol {
             }
         }
 
+        // 同一个机器的不同服务导出只会开启一个 NettyServer
         openServer(url);
         optimizeSerialization(url);
 
@@ -309,9 +317,10 @@ public class DubboProtocol extends AbstractProtocol {
     }
 
     private void openServer(URL url) {
-        // find server.
+        // find server. 提供者机器的地址 ip:port
         String key = url.getAddress();
         //client can export a service which's only for server to invoke
+        // 只有服务提供端才会启动监听
         boolean isServer = url.getParameter(IS_SERVER_KEY, true);
         if (isServer) {
             ProtocolServer server = serverMap.get(key);
@@ -409,14 +418,21 @@ public class DubboProtocol extends AbstractProtocol {
         return invoker;
     }
 
+    /**
+     * 创建服务消费端的 NettyClient 对象
+     * @param url
+     * @return
+     */
     private ExchangeClient[] getClients(URL url) {
-        // whether to share connection
-
+        // 是否共享连接
         boolean useShareConnect = false;
 
         int connections = url.getParameter(CONNECTIONS_KEY, 0);
         List<ReferenceCountExchangeClient> shareClients = null;
         // if not configured, connection is shared, otherwise, one connection for one service
+        // 如果没有配置，则 connection 是共享连接的，否则每个服务都有自己的连接。
+        // 一台机器可能提供多个服务，那么消费端是否是与同一个服务提供者机器提供的多个服务共享连接，还是与每个服务都建立一个连接，
+        // 则看配置 CONNECTIONS_KEY = connections
         if (connections == 0) {
             useShareConnect = true;
 
@@ -426,14 +442,15 @@ public class DubboProtocol extends AbstractProtocol {
             String shareConnectionsStr = url.getParameter(SHARE_CONNECTIONS_KEY, (String) null);
             connections = Integer.parseInt(StringUtils.isBlank(shareConnectionsStr) ? ConfigUtils.getProperty(SHARE_CONNECTIONS_KEY,
                     DEFAULT_SHARE_CONNECTIONS) : shareConnectionsStr);
+            // 获取共享 NettyClient
             shareClients = getSharedClient(url, connections);
         }
 
+        // 初始化 Client
         ExchangeClient[] clients = new ExchangeClient[connections];
         for (int i = 0; i < clients.length; i++) {
             if (useShareConnect) {
                 clients[i] = shareClients.get(i);
-
             } else {
                 clients[i] = initClient(url);
             }

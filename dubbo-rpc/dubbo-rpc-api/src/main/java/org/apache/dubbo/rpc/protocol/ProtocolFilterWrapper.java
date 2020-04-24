@@ -37,6 +37,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.SERVICE_FILTER_K
 
 /**
  * ListenerProtocol
+ *
+ * ProtocolFilterWrapper -> ProtocolListenerWrapper -> DubboProtocol
  */
 public class ProtocolFilterWrapper implements Protocol {
 
@@ -49,8 +51,17 @@ public class ProtocolFilterWrapper implements Protocol {
         this.protocol = protocol;
     }
 
+    /**
+     * 需要把属于某一个 group 的所有 Filter 都放到责任链里
+     * @param invoker
+     * @param key
+     * @param group
+     * @param <T>
+     * @return
+     */
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
         Invoker<T> last = invoker;
+        // 获取属于某个组的 Filter 扩展实现类
         List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
 
         if (!filters.isEmpty()) {

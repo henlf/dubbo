@@ -35,6 +35,8 @@ import static org.apache.dubbo.rpc.Constants.EXECUTES_KEY;
  * <b>executes</b> is set to 10 and if invoke request where it is already 10 then it will throws exception. It
  * continue the same behaviour un till it is <10.
  *
+ * 当服务提供端启动时只会加载 group 为 provider 的 Filter 扩展实现类
+ *
  */
 @Activate(group = CommonConstants.PROVIDER, value = EXECUTES_KEY)
 public class ExecuteLimitFilter implements Filter, Filter.Listener {

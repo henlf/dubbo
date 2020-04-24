@@ -114,7 +114,9 @@ public class NettyServer extends AbstractServer implements RemotingServer {
                         ch.pipeline()
                                 .addLast("decoder", adapter.getDecoder())
                                 .addLast("encoder", adapter.getEncoder())
+                                // 心跳检查
                                 .addLast("server-idle-handler", new IdleStateHandler(0, 0, idleTimeout, MILLISECONDS))
+                                // 业务 handler
                                 .addLast("handler", nettyServerHandler);
                     }
                 });
